@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Longevity Top 10 — Reduced Dashboard</title>
+<style>
+  :root {
+    --bg: #fbf8f3;
+    --card: #ffffff;
+    --text: #1f2937;
+    --text-muted: #6b7280;
+    --border: #ececec;
+    --green: #2f9e6b;
+    --green-soft: #e6f3ec;
+    --amber: #e9a04e;
+    --red: #ef4444;
+    --primary: #2f9e6b;
+    --shadow: 0 1px 2px rgba(0,0,0,0.04);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 32px 20px 80px; }
+  h1, h2, h3 { font-weight: 600; letter-spacing: -0.01em; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin: 28px 0 12px; font-weight: 700; }
+  .header { text-align: center; margin-bottom: 24px; }
+  .greeting { color: var(--text-muted); font-size: 14px; margin-bottom: 8px; }
+
+  /* Score ring */
+  .ring-wrap { display: flex; flex-direction: column; align-items: center; margin: 8px 0 4px; }
+  .ring { position: relative; width: 160px; height: 160px; }
+  .ring svg { transform: rotate(-90deg); width: 100%; height: 100%; }
+  .ring-bg { stroke: #ececec; stroke-width: 12; fill: none; }
+  .ring-fg { stroke: var(--green); stroke-width: 12; fill: none; stroke-linecap: round; transition: stroke-dashoffset 0.6s ease, stroke 0.3s ease; }
+  .ring-num { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .ring-num .big { font-size: 42px; font-weight: 700; }
+  .ring-num .small { color: var(--text-muted); font-size: 13px; margin-top: -4px; }
+  .score-label { font-weight: 600; margin-top: 8px; font-size: 16px; }
+  .score-meta { color: var(--text-muted); font-size: 12px; margin-top: 4px; }
+
+  /* Dimension list */
+  .dim-list { background: var(--card); border-radius: 16px; box-shadow: var(--shadow); border: 1px solid var(--border); overflow: hidden; }
+  .dim-row { display: flex; align-items: center; padding: 14px 18px; gap: 12px; border-bottom: 1px solid var(--border); }
+  .dim-row:last-child { border-bottom: none; }
+  .dim-icon { width: 36px; height: 36px; border-radius: 10px; background: var(--green-soft); display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .dim-name { flex: 1; font-weight: 500; font-size: 15px; }
+  .dim-score { font-weight: 600; }
+  .dim-score .of { color: var(--text-muted); font-weight: 400; font-size: 12px; margin-left: 2px; }
+
+  /* Profile + question cards */
+  .card { background: var(--card); border-radius: 16px; box-shadow: var(--shadow); border: 1px solid var(--border); padding: 20px; margin-bottom: 14px; }
+  .card-title { font-weight: 600; font-size: 15px; margin: 0 0 4px; }
+  .hint { color: var(--text-muted); font-size: 13px; margin: 4px 0 14px; line-height: 1.4; }
+  .evidence { color: var(--text-muted); font-size: 12px; font-style: italic; margin-top: 10px; line-height: 1.5; }
+  .dim-tag { display: inline-block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--green); background: var(--green-soft); padding: 3px 8px; border-radius: 999px; margin-bottom: 8px; }
+
+  /* Inputs */
+  .opt { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; margin-bottom: 8px; transition: background 0.15s, border-color 0.15s; user-select: none; }
+  .opt:hover { background: #fafafa; }
+  .opt.sel { border-color: var(--green); background: var(--green-soft); }
+  .opt input { accent-color: var(--green); }
+  .opt-label { flex: 1; font-size: 14px; }
+  .opt-points { color: var(--text-muted); font-size: 12px; }
+  input[type="number"], select { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 14px; background: white; color: var(--text); }
+  input[type="number"]:focus, select:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px var(--green-soft); }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .helper { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+  .answered-tag { font-size: 11px; color: var(--green); font-weight: 600; margin-left: 6px; }
+  .actions { display: flex; gap: 10px; margin-top: 24px; justify-content: center; }
+  button.btn { padding: 10px 18px; border: 1px solid var(--border); background: white; border-radius: 10px; cursor: pointer; font-size: 13px; }
+  button.btn.primary { background: var(--green); color: white; border-color: var(--green); }
+  .footer { text-align: center; color: var(--text-muted); font-size: 12px; margin-top: 32px; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="header">
+    <div class="greeting">Hello Alexander</div>
+    <div class="ring-wrap">
+      <div class="ring">
+        <svg viewBox="0 0 120 120">
+          <circle class="ring-bg" cx="60" cy="60" r="54"></circle>
+          <circle id="ringFg" class="ring-fg" cx="60" cy="60" r="54" stroke-dasharray="339.292" stroke-dashoffset="339.292"></circle>
+        </svg>
+        <div class="ring-num">
+          <div class="big" id="scoreNum">—</div>
+          <div class="small">/100</div>
+        </div>
+      </div>
+      <div class="score-label">Your Top‑10 Longevity Score</div>
+      <div class="score-meta" id="scoreMeta">No questions answered yet</div>
+    </div>
+  </div>
+
+  <h2>Health Dimensions</h2>
+  <div class="dim-list" id="dimList"></div>
+
+  <h2>Your Profile</h2>
+  <div class="card">
+    <div class="row2">
+      <div>
+        <label class="card-title" for="yob">Year of birth</label>
+        <input type="number" id="yob" min="1920" max="2010" placeholder="e.g. 1969">
+        <div class="helper">Used to age‑adjust VO2max &amp; push‑up scoring.</div>
+      </div>
+      <div>
+        <label class="card-title" for="sex">Biological sex</label>
+        <select id="sex">
+          <option value="">—</option>
+          <option value="male">Male</option>
+          <option value="female">Female</option>
+        </select>
+        <div class="helper">Used for sex‑specific norms.</div>
+      </div>
+    </div>
+  </div>
+
+  <h2>The 10 Questions</h2>
+  <div id="qList"></div>
+
+  <div class="actions">
+    <button class="btn" id="resetBtn">Reset answers</button>
+    <button class="btn primary" id="recalcBtn">Recalculate</button>
+  </div>
+
+  <div class="footer">
+    Reduced dashboard — only the 10 highest‑evidence levers across the 6 dimensions.<br>
+    Score = average points across <em>answered</em> questions only. Unanswered questions are not counted.
+  </div>
+</div>
+
+<script>
+// =========================================================
+// QUESTION DEFINITIONS — top 10, preserved scoring from live system
+// =========================================================
+
+const DIMENSIONS = [
+  { key: "energy",    name: "Energy & Performance", icon: "⚡" },
+  { key: "medical",   name: "Medical",              icon: "🫀" },
+  { key: "sleep",     name: "Sleep",                icon: "🌙" },
+  { key: "wellbeing", name: "Wellbeing",            icon: "🙂" },
+  { key: "nutrition", name: "Nutrition",            icon: "🍎" },
+  { key: "mindset",   name: "Mindset",              icon: "🧠" },
+];
+
+// Each question scores 0–10. The dashboard score is the average of answered-question points × 10.
+const QUESTIONS = [
+  // ----- Energy & Performance -----
+  {
+    id: "E1_vo2", dim: "energy",
+    question: "What is your VO2max?",
+    hint: "Enter in ml/kg/min. Most fitness watches estimate this; or use a Cooper test.",
+    type: "number", unit: "ml/kg/min", min: 5, max: 100, step: 0.1,
+    norms: "VO2", evidence: "Kodama 2009 JAMA, n=102,980: −13% all-cause mortality per +1 MET. Strongest continuous mortality predictor in epidemiology."
+  },
+  {
+    id: "E2_pushups", dim: "energy",
+    question: "How many consecutive push-ups can you complete?",
+    hint: "Men: standard (from toes). Women: modified (from knees). Maintain proper form throughout.",
+    type: "number", unit: "reps", min: 0, max: 200, step: 1,
+    norms: "PUSH", evidence: "Yang 2019 JAMA Network Open: men completing >40 push-ups had HR 0.04 for major CVD events vs <10. (10-yr follow-up, n=1,104.)"
+  },
+
+  // ----- Medical -----
+  {
+    id: "MD3_insulin", dim: "medical",
+    question: "What is your fasting insulin level?",
+    hint: "Found on a metabolic panel (µIU/mL). Leave blank if not tested.",
+    type: "number", unit: "µIU/mL", min: 0, max: 80, step: 0.1,
+    scoring: { kind: "linearLow", best: 5, worst: 25, edgeFloor: 1, edgeNote: "Fasting insulin below 1 µIU/mL is unusually low — verify with your lab." },
+    evidence: "Folsom 2003: top vs bottom quintile HR 2.64 for CVD death (n=12,722). Catches insulin resistance ~15 years before HbA1c rises."
+  },
+  {
+    id: "MD3_apob", dim: "medical",
+    question: "What is your ApoB level?",
+    hint: "Found on advanced lipid panel (mg/dL). Leave blank if not tested.",
+    type: "number", unit: "mg/dL", min: 20, max: 250, step: 1,
+    scoring: { kind: "linearLow", best: 60, worst: 130, edgeFloor: 30, edgeNote: "ApoB below 30 mg/dL is unusually low — verify with your lab." },
+    evidence: "Sniderman 2022 JAMA Cardiology: ApoB outperforms LDL-C — up to 50% of patients with normal LDL-C have discordantly elevated ApoB."
+  },
+
+  // ----- Sleep -----
+  {
+    id: "SS1_2", dim: "sleep",
+    question: "How consistent is your sleep schedule?",
+    hint: "Same bedtime and wake time each day, including weekends.",
+    type: "radio",
+    options: [
+      { label: "Very consistent (±30 min)", points: 10 },
+      { label: "Fairly consistent (±1 hour)", points: 7 },
+      { label: "Somewhat irregular (±2 hours)", points: 4 },
+      { label: "Highly irregular (varies widely)", points: 0 }
+    ],
+    evidence: "Windred 2024 Sleep, n=60,977 UK Biobank: irregular vs regular schedule → HR 1.20–1.48 for all-cause mortality. Stronger predictor than total hours."
+  },
+  {
+    id: "SS1_1", dim: "sleep",
+    question: "How many hours of sleep do you typically get per night?",
+    hint: "Average over the past month.",
+    type: "radio",
+    options: [
+      { label: "7–8 hours", points: 10 },
+      { label: "6–7 or 8–9 hours", points: 7 },
+      { label: "5–6 or 9–10 hours", points: 4 },
+      { label: "Less than 5 or more than 10 hours", points: 0 }
+    ],
+    evidence: "Cappuccio 2010 Sleep, meta n≈1,382,999: <6 h vs 7–8 h → RR 1.12 ACM. U-shaped risk on the upper end too."
+  },
+
+  // ----- Wellbeing -----
+  {
+    id: "W2_1", dim: "wellbeing",
+    question: "How would you rate the quality of your close relationships?",
+    type: "radio",
+    options: [
+      { label: "Excellent — deep, supportive connections", points: 10 },
+      { label: "Good — regular meaningful interactions", points: 7 },
+      { label: "Fair — some connections but lacking depth", points: 4 },
+      { label: "Poor — feeling isolated or unsupported", points: 0 }
+    ],
+    evidence: "Holt-Lunstad 2015, meta n=2,913,717: stronger vs weaker social ties → OR 1.50 for survival. Largest behavioural mortality effect in the lifestyle literature."
+  },
+  {
+    id: "W2_2", dim: "wellbeing",
+    question: "To what extent do you feel your life has a sense of purpose or meaning?",
+    type: "radio",
+    options: [
+      { label: "Strong and clear sense of purpose", points: 10 },
+      { label: "Moderate — I have some direction", points: 7 },
+      { label: "Somewhat unclear", points: 4 },
+      { label: "Lacking direction or purpose", points: 0 }
+    ],
+    evidence: "Steptoe & Fancourt 2019 PNAS, n=9,050: high vs low purpose → HR 0.83 ACM."
+  },
+
+  // ----- Nutrition -----
+  {
+    id: "N3_1", dim: "nutrition",
+    question: "What is your daily protein intake per kg of body weight?",
+    type: "radio",
+    options: [
+      { label: "1.6–2.0 g/kg",        points: 10 },
+      { label: "1.2–1.5 g/kg",        points: 6 },
+      { label: "0.8–1.1 g/kg (RDA)",  points: 2 },
+      { label: "Below 0.8 g/kg",      points: 0 }
+    ],
+    evidence: "Morton 2018 BJSM meta, n≈1,800: 1.6 g/kg/day is the optimisation plateau for muscle mass. Anabolic resistance after ~50 makes this dose-critical."
+  },
+
+  // ----- Mindset -----
+  {
+    id: "M4_1", dim: "mindset",
+    question: "How do you prioritise preventive health compared to treating problems when they arise?",
+    type: "radio",
+    options: [
+      { label: "Prevention is my main focus",            points: 10 },
+      { label: "I try to balance both",                  points: 7 },
+      { label: "I mostly react when issues come up",     points: 3 },
+      { label: "I only deal with health when I have to", points: 0 }
+    ],
+    evidence: "Livingston 2020 Lancet Commission: ~40% of dementia is preventable through 12 modifiable risk factors. Activation gate for the other 9 levers."
+  }
+];
+
+// =========================================================
+// NORM TABLES — verbatim from the live dashboard so scores match
+// =========================================================
+
+const VO2_NORMS = {
+  male: {
+    "20-29":[{m:38.2,p:0},{m:41.9,p:1},{m:45.5,p:5},{m:51,p:7},{m:55.9,p:9},{m:999,p:10}],
+    "30-39":[{m:34.4,p:0},{m:38.3,p:1},{m:42.3,p:5},{m:47.3,p:7},{m:52.4,p:9},{m:999,p:10}],
+    "40-49":[{m:30.7,p:0},{m:34.5,p:1},{m:38.3,p:5},{m:44.1,p:7},{m:49.9,p:9},{m:999,p:10}],
+    "50-59":[{m:27.0,p:0},{m:30.9,p:1},{m:34.8,p:5},{m:40.1,p:7},{m:45.2,p:9},{m:999,p:10}],
+    "60-69":[{m:23.7,p:0},{m:27.4,p:1},{m:31.4,p:5},{m:37.2,p:7},{m:43.0,p:9},{m:999,p:10}],
+    "70+":  [{m:19.6,p:0},{m:23.3,p:1},{m:27.6,p:5},{m:33.4,p:7},{m:39.2,p:9},{m:999,p:10}]
+  },
+  female: {
+    "20-29":[{m:27.9,p:0},{m:31.3,p:1},{m:35.1,p:5},{m:40.9,p:7},{m:45.8,p:9},{m:999,p:10}],
+    "30-39":[{m:26.4,p:0},{m:29.8,p:1},{m:33.7,p:5},{m:38.7,p:7},{m:44.0,p:9},{m:999,p:10}],
+    "40-49":[{m:24.4,p:0},{m:27.4,p:1},{m:31.0,p:5},{m:36.7,p:7},{m:42.4,p:9},{m:999,p:10}],
+    "50-59":[{m:22.6,p:0},{m:25.9,p:1},{m:29.7,p:5},{m:35.6,p:7},{m:40.9,p:9},{m:999,p:10}],
+    "60-69":[{m:20.0,p:0},{m:23.4,p:1},{m:27.2,p:5},{m:33.0,p:7},{m:37.9,p:9},{m:999,p:10}],
+    "70+":  [{m:17.4,p:0},{m:20.7,p:1},{m:24.4,p:5},{m:30.2,p:7},{m:35.1,p:9},{m:999,p:10}]
+  }
+};
+
+const PUSH_NORMS = {
+  male: {
+    "20-29":[{m:16,p:0},{m:22,p:2},{m:28,p:5},{m:38,p:8},{m:999,p:10}],
+    "30-39":[{m:15,p:0},{m:21,p:2},{m:28,p:5},{m:35,p:8},{m:999,p:10}],
+    "40-49":[{m:11,p:0},{m:16,p:2},{m:21,p:5},{m:29,p:8},{m:999,p:10}],
+    "50-59":[{m: 9,p:0},{m:12,p:2},{m:16,p:5},{m:24,p:8},{m:999,p:10}],
+    "60-69":[{m: 6,p:0},{m: 9,p:2},{m:12,p:5},{m:20,p:8},{m:999,p:10}],
+    "70+":  [{m: 4,p:0},{m: 7,p:2},{m:10,p:5},{m:17,p:8},{m:999,p:10}]
+  },
+  female: {
+    "20-29":[{m:11,p:0},{m:17,p:2},{m:24,p:5},{m:34,p:8},{m:999,p:10}],
+    "30-39":[{m:11,p:0},{m:16,p:2},{m:21,p:5},{m:29,p:8},{m:999,p:10}],
+    "40-49":[{m: 7,p:0},{m:13,p:2},{m:20,p:5},{m:28,p:8},{m:999,p:10}],
+    "50-59":[{m: 5,p:0},{m:10,p:2},{m:16,p:5},{m:24,p:8},{m:999,p:10}],
+    "60-69":[{m: 4,p:0},{m: 9,p:2},{m:15,p:5},{m:22,p:8},{m:999,p:10}],
+    "70+":  [{m: 3,p:0},{m: 8,p:2},{m:14,p:5},{m:20,p:8},{m:999,p:10}]
+  }
+};
+
+function ageBand(age) {
+  if (age == null) return null;
+  if (age < 30) return "20-29";
+  if (age < 40) return "30-39";
+  if (age < 50) return "40-49";
+  if (age < 60) return "50-59";
+  if (age < 70) return "60-69";
+  return "70+";
+}
+
+function scoreFromNorms(table, sex, age, value) {
+  if (!sex || age == null || value == null || isNaN(value)) return null;
+  const band = ageBand(age);
+  const arr = (table[sex] || {})[band];
+  if (!arr) return null;
+  for (const row of arr) { if (value <= row.m) return row.p; }
+  return arr[arr.length - 1].p;
+}
+
+function linearLowScore(value, best, worst, edgeFloor) {
+  if (value == null || isNaN(value)) return null;
+  // Higher value = worse; clamp at best/worst.
+  if (edgeFloor != null && value < edgeFloor) return 10; // unusually low — flagged but still scores top
+  if (value <= best) return 10;
+  if (value >= worst) return 0;
+  const t = (worst - value) / (worst - best);
+  return Math.round(t * 100) / 10; // one decimal
+}
+
+// =========================================================
+// STATE
+// =========================================================
+
+const state = {
+  yob: null,
+  sex: "",
+  answers: {} // { questionId: { value, points } }
+};
+
+function currentAge() {
+  if (!state.yob) return null;
+  const now = new Date();
+  return now.getFullYear() - state.yob;
+}
+
+// =========================================================
+// SCORING
+// =========================================================
+
+function computeQuestionPoints(q) {
+  const a = state.answers[q.id];
+  if (!a || a.value === "" || a.value == null) return null;
+  if (q.type === "radio") return a.points;
+  if (q.type === "number") {
+    const v = parseFloat(a.value);
+    if (isNaN(v)) return null;
+    if (q.norms === "VO2") return scoreFromNorms(VO2_NORMS, state.sex, currentAge(), v);
+    if (q.norms === "PUSH") return scoreFromNorms(PUSH_NORMS, state.sex, currentAge(), v);
+    if (q.scoring && q.scoring.kind === "linearLow") {
+      return linearLowScore(v, q.scoring.best, q.scoring.worst, q.scoring.edgeFloor);
+    }
+  }
+  return null;
+}
+
+function computeDimensionScore(dimKey) {
+  const qs = QUESTIONS.filter(q => q.dim === dimKey);
+  const points = qs.map(q => computeQuestionPoints(q)).filter(p => p != null);
+  if (!points.length) return { score: null, count: 0, total: qs.length };
+  const avg = points.reduce((a,b)=>a+b,0) / points.length;
+  return { score: Math.round(avg * 10), count: points.length, total: qs.length };
+}
+
+function computeTotalScore() {
+  const allPoints = QUESTIONS.map(q => computeQuestionPoints(q)).filter(p => p != null);
+  if (!allPoints.length) return { score: null, answered: 0, total: QUESTIONS.length };
+  const avg = allPoints.reduce((a,b)=>a+b,0) / allPoints.length;
+  return { score: Math.round(avg * 10), answered: allPoints.length, total: QUESTIONS.length };
+}
+
+// =========================================================
+// RENDER
+// =========================================================
+
+function renderDimensions() {
+  const list = document.getElementById("dimList");
+  list.innerHTML = "";
+  for (const d of DIMENSIONS) {
+    const r = computeDimensionScore(d.key);
+    const row = document.createElement("div");
+    row.className = "dim-row";
+    row.innerHTML = `
+      <div class="dim-icon">${d.icon}</div>
+      <div class="dim-name">${d.name}</div>
+      <div class="dim-score">${r.score == null ? "—" : r.score}<span class="of">/100</span></div>
+    `;
+    list.appendChild(row);
+  }
+}
+
+function renderTotal() {
+  const t = computeTotalScore();
+  const num = document.getElementById("scoreNum");
+  const ring = document.getElementById("ringFg");
+  const meta = document.getElementById("scoreMeta");
+  const C = 2 * Math.PI * 54;
+  if (t.score == null) {
+    num.textContent = "—";
+    ring.style.strokeDashoffset = C;
+    meta.textContent = "No questions answered yet";
+  } else {
+    num.textContent = t.score;
+    ring.style.strokeDashoffset = C * (1 - t.score / 100);
+    ring.style.stroke = t.score >= 70 ? "var(--green)" : t.score >= 50 ? "var(--amber)" : "var(--red)";
+    meta.textContent = `Based on ${t.answered} of ${t.total} questions answered`;
+  }
+}
+
+function renderQuestions() {
+  const root = document.getElementById("qList");
+  root.innerHTML = "";
+  // group by dimension order
+  for (const d of DIMENSIONS) {
+    const qs = QUESTIONS.filter(q => q.dim === d.key);
+    for (const q of qs) {
+      const card = document.createElement("div");
+      card.className = "card";
+      const isAnswered = computeQuestionPoints(q) != null;
+      card.innerHTML = `
+        <div class="dim-tag">${d.icon} ${d.name}</div>
+        <h3 class="card-title">${q.question}${isAnswered ? '<span class="answered-tag">✓ answered</span>' : ''}</h3>
+        ${q.hint ? `<div class="hint">${q.hint}</div>` : ""}
+        <div class="q-input" data-id="${q.id}"></div>
+        ${q.evidence ? `<div class="evidence">${q.evidence}</div>` : ""}
+      `;
+      root.appendChild(card);
+      const slot = card.querySelector(".q-input");
+      if (q.type === "radio") {
+        for (const o of q.options) {
+          const opt = document.createElement("label");
+          opt.className = "opt" + ((state.answers[q.id] && state.answers[q.id].label === o.label) ? " sel" : "");
+          opt.innerHTML = `
+            <input type="radio" name="${q.id}" value="${o.points}" ${(state.answers[q.id] && state.answers[q.id].label === o.label) ? "checked" : ""}>
+            <div class="opt-label">${o.label}</div>
+            <div class="opt-points">${o.points} pts</div>
+          `;
+          opt.addEventListener("click", () => {
+            state.answers[q.id] = { value: o.points, points: o.points, label: o.label };
+            saveState();
+            renderAll();
+          });
+          slot.appendChild(opt);
+        }
+      } else if (q.type === "number") {
+        const wrap = document.createElement("div");
+        const cur = state.answers[q.id]?.value ?? "";
+        wrap.innerHTML = `
+          <input type="number" min="${q.min}" max="${q.max}" step="${q.step}" placeholder="${q.unit}" value="${cur}">
+          <div class="helper">${q.unit ? `Unit: ${q.unit}. ` : ""}Leave blank if you don't have this value.</div>
+        `;
+        const inp = wrap.querySelector("input");
+        inp.addEventListener("input", () => {
+          const v = inp.value;
+          if (v === "" || v == null) delete state.answers[q.id];
+          else state.answers[q.id] = { value: v };
+          saveState();
+          renderTotal();
+          renderDimensions();
+        });
+        inp.addEventListener("blur", () => renderQuestions()); // refresh "answered" tags after typing
+        slot.appendChild(wrap);
+      }
+    }
+  }
+}
+
+function renderAll() {
+  renderTotal();
+  renderDimensions();
+  renderQuestions();
+}
+
+// =========================================================
+// PERSISTENCE (in-memory only — survives page interaction, not refresh)
+// localStorage intentionally not used so the page can be embedded anywhere.
+// =========================================================
+
+let _saveTimer = null;
+function saveState() {
+  // No-op placeholder for now. Could be wired to a backend or localStorage at user's discretion.
+  clearTimeout(_saveTimer);
+}
+
+// =========================================================
+// EVENTS
+// =========================================================
+
+document.getElementById("yob").addEventListener("input", e => {
+  const v = parseInt(e.target.value, 10);
+  state.yob = (isNaN(v) || v < 1920 || v > 2010) ? null : v;
+  renderTotal();
+  renderDimensions();
+});
+document.getElementById("sex").addEventListener("change", e => {
+  state.sex = e.target.value;
+  renderTotal();
+  renderDimensions();
+});
+document.getElementById("resetBtn").addEventListener("click", () => {
+  if (confirm("Clear all your answers?")) {
+    state.answers = {};
+    state.yob = null;
+    state.sex = "";
+    document.getElementById("yob").value = "";
+    document.getElementById("sex").value = "";
+    renderAll();
+  }
+});
+document.getElementById("recalcBtn").addEventListener("click", () => renderAll());
+
+// initial render
+renderAll();
+</script>
+</body>
+</html>
