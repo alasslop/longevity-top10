@@ -287,8 +287,12 @@
 <style id="lp-selector-css">
 .lp-cb { width:20px; height:20px; cursor:pointer; accent-color:#00905A; margin-right:10px; flex-shrink:0; }
 .lp-panel { background:var(--color-card); border:2px solid #00905A; border-radius:16px; padding:16px; margin:16px; }
-.lp-panel h3 { margin:0 0 12px; font-size:16px; color:#00905A; }
+.lp-panel h3 { margin:0; font-size:16px; color:#00905A; }
 .lp-panel-head { display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+.lp-panel-head-right { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.lp-clear-btn { font-size:11px; padding:4px 10px; background:#fff; color:#c00; border:1px solid #f99; border-radius:6px; cursor:pointer; }
+.lp-clear-btn:hover { background:#fee; }
+.lp-count { font-size:11px; color:var(--color-text-muted); }
 .lp-score-row { display:flex; gap:16px; padding:12px; background:var(--color-bg); border-radius:12px; margin-bottom:12px; align-items:center; }
 .lp-score-big { font-size:36px; font-weight:700; color:#00905A; line-height:1; }
 .lp-score-sub { font-size:11px; color:var(--color-text-muted); }
@@ -3299,6 +3303,7 @@
 (function(){
   function init(){
     if (typeof CATEGORIES === 'undefined' || !document.body) { setTimeout(init, 200); return; }
+
     var textMap = {};
     Object.keys(CATEGORIES).forEach(function(dk){
       var dim = CATEGORIES[dk];
@@ -3364,29 +3369,19 @@
       });
     }
 
-    function buildInput(q){
+    function buildInputHtml(q){
       var ans = getAns(q.id); if (ans == null) ans = '';
       if (q.type === 'number') return '<input type="number" data-qid="'+q.id+'" min="'+(q.min||0)+'" max="'+(q.max||999)+'" step="'+(q.step||0.1)+'" placeholder="'+(q.unit||'')+'" value="'+ans+'">';
-      if (q.type === 'slider') return '<input type="range" data-qid="'+q.id+'" min="'+(q.min||0)+'" max="'+(q.max||10)+'" step="'+(q.step||1)+'" value="'+(ans||q.min||0)+'"><div style="font-size:11px;text-align:center;color:#888">Value: '+(ans||'\u2014')+'</div>';
+      if (q.type === 'slider') return '<input type="range" data-qid="'+q.id+'" min="'+(q.min||0)+'" max="'+(q.max||10)+'" step="'+(q.step||1)+'" value="'+(ans||q.min||0)+'"><div style="font-size:11px;text-align:center;color:#888">Value: '+(ans||'—')+'</div>';
       if (q.type === 'radio' && Array.isArray(q.options)) {
-        var html = '<select data-qid="'+q.id+'"><option value="">\u2014 Select \u2014</option>';
+        var html = '<select data-qid="'+q.id+'"><option value="">— Select —</option>';
         q.options.forEach(function(o){ html += '<option value="'+o.value+'"'+(String(ans)===String(o.value)?' selected':'')+'>'+o.label+'</option>'; });
         return html + '</select>';
       }
       return '<input data-qid="'+q.id+'" value="'+ans+'">';
     }
 
-    function renderPanel(){
-      var panel = document.getElementById('lp-panel');
-      if (!panel) {
-        panel = document.createElement('div');
-        panel.id = 'lp-panel';
-        panel.className = 'lp-panel';
-        var tab = document.querySelector('.tab-content.active') || document.querySelector('.tab-content') || document.body;
-        var sh = tab.querySelector('.score-header');
-        if (sh && sh.parentNode === tab) tab.insertBefore(panel, sh.nextSibling);
-        else tab.insertBefore(panel, tab.firstChild);
-      }
+    function computeScores(){
       var dimNames = {medical:'Medical', nutrition:'Nutrition', energy:'Energy & Performance', sleep:'Sleep', wellbeing:'Wellbeing', mindset:'Mindset'};
       var byDim = {medical:[], nutrition:[], energy:[], sleep:[], wellbeing:[], mindset:[]};
       var all = [];
@@ -3403,30 +3398,103 @@
         var arr = byDim[k];
         dimScores[k] = arr.length ? Math.round(arr.reduce(function(a,b){return a+b;},0)/arr.length) : null;
       });
+      return {dimNames:dimNames, dimScores:dimScores, total:total, all:all, selectedList:selectedList};
+    }
+
+    function clearAnswers(){
+      if (!confirm('Clear all your answers? Your question selection stays.')) return;
+      window.answers = {};
+      // Try common storage keys used by the original dashboard
+      ['answers','user_answers','userAnswers','lp_answers'].forEach(function(k){ try { localStorage.removeItem(k); } catch(e){} });
+      if (typeof saveAnswers === 'function') { try { saveAnswers(); } catch(e){} }
+      if (typeof updateScoresAndUI === 'function') { try { updateScoresAndUI(); } catch(e){} }
+      renderPanel();
+      // Hard reload to ensure original dashboard rebuilds from cleared state
+      setTimeout(function(){ location.reload(); }, 100);
+    }
+
+    // Update only the score parts (NOT the input elements) — preserves focus while typing
+    function updateScoresOnly(){
+      var panel = document.getElementById('lp-panel');
+      if (!panel) return renderPanel();
+      var s = computeScores();
+      // Header count
+      var cntEl = panel.querySelector('.lp-count');
+      if (cntEl) cntEl.textContent = SEL.size + ' of 44 selected · ' + s.all.length + ' answered';
+      // Big total
+      var bigEl = panel.querySelector('.lp-score-big');
+      if (bigEl) bigEl.textContent = (s.total == null ? '—' : s.total);
+      // Pills
+      var pillBox = panel.querySelector('.lp-dim-mini');
+      if (pillBox) {
+        var html = '';
+        Object.keys(s.dimNames).forEach(function(dk){
+          var v = s.dimScores[dk];
+          html += '<div class="lp-dim-pill">' + s.dimNames[dk] + ': ' + (v==null?'—':v+'/100') + '</div>';
+        });
+        pillBox.innerHTML = html;
+      }
+      // Per-question status lines (next to each q-card)
+      panel.querySelectorAll('.lp-q-card').forEach(function(card){
+        var inp = card.querySelector('input,select'); if (!inp) return;
+        var qid = inp.dataset.qid; if (!qid) return;
+        var info = idMap[qid]; if (!info) return;
+        var p = pts(info.q);
+        var statusEl = card.querySelector('.lp-q-status');
+        if (statusEl) statusEl.textContent = (p == null ? 'Not answered yet' : 'Score: ' + Math.round(p) + '/100');
+      });
+    }
+
+    function renderPanel(){
+      var panel = document.getElementById('lp-panel');
+      if (!panel) {
+        panel = document.createElement('div');
+        panel.id = 'lp-panel';
+        panel.className = 'lp-panel';
+        var tab = document.querySelector('.tab-content.active') || document.querySelector('.tab-content') || document.body;
+        var sh = tab.querySelector('.score-header');
+        if (sh && sh.parentNode === tab) tab.insertBefore(panel, sh.nextSibling);
+        else tab.insertBefore(panel, tab.firstChild);
+      }
+      var s = computeScores();
       var pills = '';
-      Object.keys(dimNames).forEach(function(dk){
-        var v = dimScores[dk];
-        pills += '<div class="lp-dim-pill">'+dimNames[dk]+': '+(v==null?'\u2014':v+'/100')+'</div>';
+      Object.keys(s.dimNames).forEach(function(dk){
+        var v = s.dimScores[dk];
+        pills += '<div class="lp-dim-pill">' + s.dimNames[dk] + ': ' + (v==null?'—':v+'/100') + '</div>';
       });
       var qList = '';
-      selectedList.forEach(function(info){
+      s.selectedList.forEach(function(info){
         var p = pts(info.q);
-        qList += '<div class="lp-q-card"><div class="lp-dim-tag">'+info.dimName+'</div><h4>'+info.q.question+'</h4>'+buildInput(info.q)+'<div style="font-size:11px;color:var(--color-text-muted);margin-top:6px">'+(p==null?'Not answered yet':'Score: '+Math.round(p)+'/100')+'</div></div>';
+        qList += '<div class="lp-q-card" data-card-qid="'+info.qid+'"><div class="lp-dim-tag">'+info.dimName+'</div><h4>'+info.q.question+'</h4>'+buildInputHtml(info.q)+'<div class="lp-q-status" style="font-size:11px;color:var(--color-text-muted);margin-top:6px">'+(p==null?'Not answered yet':'Score: '+Math.round(p)+'/100')+'</div></div>';
       });
-      if (selectedList.length === 0) qList = '<div style="text-align:center;padding:20px;color:var(--color-text-muted);font-size:13px">No questions selected. Open a dimension below and tick the checkbox next to questions.</div>';
+      if (s.selectedList.length === 0) qList = '<div style="text-align:center;padding:20px;color:var(--color-text-muted);font-size:13px">No questions selected. Open a dimension below and tick the checkbox next to questions.</div>';
       panel.innerHTML =
-        '<div class="lp-panel-head"><h3>Your Selected Questions</h3><div style="font-size:11px;color:var(--color-text-muted)">'+SEL.size+' of 44 selected \u00b7 '+all.length+' answered</div></div>' +
-        '<div class="lp-score-row"><div><div class="lp-score-big">'+(total==null?'\u2014':total)+'</div><div class="lp-score-sub">/100</div></div><div><div style="font-weight:600;font-size:14px">Selected Score</div><div class="lp-score-sub">Avg of answered selected questions</div></div></div>' +
+        '<div class="lp-panel-head">' +
+          '<h3>Your Selected Questions</h3>' +
+          '<div class="lp-panel-head-right">' +
+            '<div class="lp-count">' + SEL.size + ' of 44 selected · ' + s.all.length + ' answered</div>' +
+            '<button class="lp-clear-btn" id="lp-clear-btn" type="button">Clear answers</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="lp-score-row"><div><div class="lp-score-big">'+(s.total==null?'—':s.total)+'</div><div class="lp-score-sub">/100</div></div><div><div style="font-weight:600;font-size:14px">Selected Score</div><div class="lp-score-sub">Avg of answered selected questions</div></div></div>' +
         '<div class="lp-dim-mini">'+pills+'</div>' +
         '<div style="margin-top:12px;max-height:60vh;overflow-y:auto">'+qList+'</div>';
+
+      // Wire clear button
+      var clearBtn = panel.querySelector('#lp-clear-btn');
+      if (clearBtn) clearBtn.addEventListener('click', clearAnswers);
+
+      // Wire inputs — debounced + DO NOT re-render the panel on input
       panel.querySelectorAll('input,select').forEach(function(inp){
-        inp.addEventListener('input', function(){
+        if (inp.classList && inp.classList.contains('lp-clear-btn')) return;
+        var evt = (inp.tagName === 'SELECT') ? 'change' : 'input';
+        inp.addEventListener(evt, function(){
           var qid = inp.dataset.qid; if (!qid) return;
           if (!window.answers) window.answers = {};
           window.answers[qid] = inp.value;
           if (typeof saveAnswers === 'function') try { saveAnswers(); } catch(e){}
-          if (typeof updateScoresAndUI === 'function') updateScoresAndUI();
-          renderPanel();
+          if (typeof updateScoresAndUI === 'function') try { updateScoresAndUI(); } catch(e){}
+          updateScoresOnly();
         });
       });
     }
@@ -3437,7 +3505,7 @@
     obs.observe(document.body, {childList: true, subtree: true});
     if (typeof window.updateScoresAndUI === 'function') {
       var orig = window.updateScoresAndUI;
-      window.updateScoresAndUI = function(){ var r = orig.apply(this, arguments); try { renderPanel(); } catch(e){} return r; };
+      window.updateScoresAndUI = function(){ var r = orig.apply(this, arguments); try { updateScoresOnly(); } catch(e){} return r; };
     }
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
