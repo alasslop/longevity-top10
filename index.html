@@ -294,18 +294,15 @@
 .lp-panel h3 { margin:0; font-size:16px; color:#00905A; }
 .lp-panel-head { display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
 .lp-count { font-size:11px; color:var(--color-text-muted); }
-.lp-score-row { display:flex; gap:16px; padding:12px; background:var(--color-bg); border-radius:12px; margin-bottom:12px; align-items:center; }
-.lp-score-big { font-size:36px; font-weight:700; color:#00905A; line-height:1; }
-.lp-score-sub { font-size:11px; color:var(--color-text-muted); }
 .lp-q-card { padding:12px; border:1px solid var(--color-border); border-radius:10px; background:#fff; margin-bottom:8px; }
 .lp-q-card.lp-q-profile { background:#FFFBEB; border-color:#FDE68A; }
 .lp-q-card h4 { font-size:14px; margin:0 0 6px; font-weight:600; }
 .lp-dim-tag { font-size:10px; text-transform:uppercase; color:#00905A; background:#E8F5F0; padding:2px 8px; border-radius:999px; display:inline-block; margin-bottom:4px; }
 .lp-dim-tag.lp-tag-profile { color:#92400E; background:#FEF3C7; }
 .lp-q-card input, .lp-q-card select { width:100%; padding:8px; border:1px solid var(--color-border); border-radius:8px; font-size:14px; margin-top:6px; }
-.lp-dim-mini { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
-.lp-dim-pill { font-size:11px; padding:4px 10px; background:var(--color-bg); border-radius:999px; border:1px solid var(--color-border); }
 .lp-profile-hint { font-size:11px; color:#92400E; font-style:italic; }
+.lp-q-status { font-size:11px; color:var(--color-text-muted); margin-top:6px; }
+.lp-mirror-note { font-size:11px; color:var(--color-text-muted); margin:8px 0 0; font-style:italic; }
 </style>
 </head>
 <body>
@@ -3308,20 +3305,20 @@
   function init(){
     if (typeof CATEGORIES === 'undefined' || !document.body) { setTimeout(init, 200); return; }
 
+    // Build maps with secKey now
     var textMap = {};
     Object.keys(CATEGORIES).forEach(function(dk){
       var dim = CATEGORIES[dk];
       Object.keys(dim.sections || {}).forEach(function(sk){
         var sec = dim.sections[sk];
         (sec.questions || []).forEach(function(q){
-          if (q && q.question) textMap[q.question.trim()] = {qid: q.id, q: q, dimKey: dk, dimName: dim.name};
+          if (q && q.question) textMap[q.question.trim()] = {qid: q.id, q: q, dimKey: dk, dimName: dim.name, secKey: sk};
         });
       });
     });
     var idMap = {};
     Object.keys(textMap).forEach(function(k){ idMap[textMap[k].qid] = textMap[k]; });
 
-    // === Mandatory profile questions: always selected, always first ===
     var PROFILE = ['MD1_yob', 'MD1_sex'];
     var PROFILE_SET = new Set(PROFILE);
     function isProfile(qid){ return PROFILE_SET.has(qid); }
@@ -3329,7 +3326,6 @@
     var TOP10 = ['E1_vo2','E2_pushups','MD3_insulin','MD3_apob','SS1_2','SS1_1','W2_1','W2_2','N3_1','M4_1'];
     var stored = localStorage.getItem('lp_selected');
     var SEL = new Set(stored ? JSON.parse(stored) : TOP10);
-    // Force profile to always be in the selection
     PROFILE.forEach(function(p){ SEL.add(p); });
     function save(){ localStorage.setItem('lp_selected', JSON.stringify(Array.from(SEL))); }
     save();
@@ -3340,21 +3336,84 @@
       return PROFILE.filter(function(q){ return SEL.has(q); }).concat(rest);
     }
 
-    function getAns(qid){ return (window.answers || {})[qid]; }
-    function isAnswered(q){
-      var a = getAns(q.id);
+    // === Feed value into the dashboard's own storage by triggering its setter functions ===
+    function feedNumber(info, value){
+      var qid = info.qid;
+      var orig = document.querySelector('input[data-q="' + qid + '"]');
+      if (orig && typeof window.updateNumber === 'function') {
+        orig.value = value;
+        try { window.updateNumber(orig); return true; } catch(e) { console.warn('updateNumber failed', e); }
+      }
+      // Synthetic element fallback
+      var fake = document.createElement('input');
+      fake.dataset.cat = info.dimKey;
+      fake.dataset.sec = info.secKey;
+      fake.dataset.q = qid;
+      fake.value = value;
+      try { if (typeof window.updateNumber === 'function') { window.updateNumber(fake); return true; } } catch(e) { console.warn('updateNumber (fake) failed', e); }
+      return false;
+    }
+    function feedRadio(info, value){
+      var qid = info.qid;
+      // Try to find an existing radio-option in the dashboard DOM
+      var opts = document.querySelectorAll('.radio-option[onclick*="' + qid + '"]');
+      var foundEl = null;
+      for (var i = 0; i < opts.length; i++) {
+        if (opts[i].getAttribute('onclick').indexOf("'" + value + "'") !== -1) { foundEl = opts[i]; break; }
+      }
+      if (foundEl && typeof window.selectRadio === 'function') {
+        try { window.selectRadio(info.dimKey, info.secKey, qid, value, foundEl); return true; } catch(e) { console.warn('selectRadio existing failed', e); }
+      }
+      // Synthetic element fallback
+      var fakeParent = document.createElement('div');
+      var fakeChild = document.createElement('div');
+      fakeChild.className = 'radio-option';
+      var fakeInput = document.createElement('input');
+      fakeChild.appendChild(fakeInput);
+      fakeParent.appendChild(fakeChild);
+      try { if (typeof window.selectRadio === 'function') { window.selectRadio(info.dimKey, info.secKey, qid, value, fakeChild); return true; } } catch(e) { console.warn('selectRadio (fake) failed', e); }
+      return false;
+    }
+    function feedSlider(info, value){
+      var qid = info.qid;
+      var orig = document.querySelector('input[type="range"][data-q="' + qid + '"]');
+      if (orig && typeof window.updateSlider === 'function') {
+        orig.value = value;
+        try { window.updateSlider(orig); return true; } catch(e) { console.warn('updateSlider failed', e); }
+      }
+      var fake = document.createElement('input');
+      fake.dataset.cat = info.dimKey;
+      fake.dataset.sec = info.secKey;
+      fake.dataset.q = qid;
+      fake.value = value;
+      try { if (typeof window.updateSlider === 'function') { window.updateSlider(fake); return true; } } catch(e) {}
+      return false;
+    }
+    function feedValue(info, value){
+      var t = info.q.type;
+      if (t === 'number') return feedNumber(info, value);
+      if (t === 'radio') return feedRadio(info, value);
+      if (t === 'slider') return feedSlider(info, value);
+      return false;
+    }
+
+    function getCurrentAnswer(info){
+      // Read directly from localStorage longevityPathData (it's the dashboard's persisted state)
+      try {
+        var data = JSON.parse(localStorage.getItem('longevityPathData') || '{}');
+        if (data.answers && data.answers[info.dimKey] && data.answers[info.dimKey][info.secKey]) {
+          return data.answers[info.dimKey][info.secKey][info.qid];
+        }
+      } catch(e) {}
+      return undefined;
+    }
+
+    function isAnswered(info){
+      var a = getCurrentAnswer(info);
       if (a == null) return false;
       if (typeof a === 'string') return a.trim() !== '';
       if (Array.isArray(a)) return a.length > 0;
       return true;
-    }
-    function pts(q){
-      if (!isAnswered(q)) return null;
-      var a = getAns(q.id);
-      if (typeof questionScorePct === 'function') {
-        try { var p = questionScorePct(q, a); return (typeof p === 'number' && !isNaN(p)) ? p : null; } catch(e){ return null; }
-      }
-      return null;
     }
 
     function injectCheckboxes(){
@@ -3382,15 +3441,13 @@
         cb.className = 'lp-cb';
         cb.checked = SEL.has(info.qid);
         cb.dataset.qid = info.qid;
-        // Profile checkboxes are locked-on
         if (isProfile(info.qid)) {
-          cb.checked = true;
-          cb.disabled = true;
+          cb.checked = true; cb.disabled = true;
           cb.title = 'Required for scoring — always selected';
         }
         cb.addEventListener('click', function(e){ e.stopPropagation(); });
         cb.addEventListener('change', function(){
-          if (isProfile(info.qid)) { cb.checked = true; return; } // can't unselect
+          if (isProfile(info.qid)) { cb.checked = true; return; }
           if (cb.checked) SEL.add(info.qid); else SEL.delete(info.qid);
           save();
           renderPanel();
@@ -3401,84 +3458,55 @@
       });
     }
 
-    function buildInputHtml(q){
-      var ans = getAns(q.id); if (ans == null) ans = '';
-      if (q.type === 'number') return '<input type="number" data-qid="'+q.id+'" min="'+(q.min||0)+'" max="'+(q.max||999)+'" step="'+(q.step||0.1)+'" placeholder="'+(q.unit||'')+'" value="'+ans+'">';
-      if (q.type === 'slider') return '<input type="range" data-qid="'+q.id+'" min="'+(q.min||0)+'" max="'+(q.max||10)+'" step="'+(q.step||1)+'" value="'+(ans||q.min||0)+'"><div style="font-size:11px;text-align:center;color:#888">Value: '+(ans||'—')+'</div>';
+    function buildInputHtml(info){
+      var q = info.q;
+      var ans = getCurrentAnswer(info); if (ans == null) ans = '';
+      if (q.type === 'number') return '<input type="number" data-lp-qid="'+q.id+'" min="'+(q.min||0)+'" max="'+(q.max||999)+'" step="'+(q.step||0.1)+'" placeholder="'+(q.unit||'')+'" value="'+ans+'">';
+      if (q.type === 'slider') return '<input type="range" data-lp-qid="'+q.id+'" min="'+(q.min||0)+'" max="'+(q.max||10)+'" step="'+(q.step||1)+'" value="'+(ans||q.min||0)+'"><div style="font-size:11px;text-align:center;color:#888">Value: '+(ans||'—')+'</div>';
       if (q.type === 'radio' && Array.isArray(q.options)) {
-        var html = '<select data-qid="'+q.id+'"><option value="">— Select —</option>';
+        var html = '<select data-lp-qid="'+q.id+'"><option value="">— Select —</option>';
         q.options.forEach(function(o){ html += '<option value="'+o.value+'"'+(String(ans)===String(o.value)?' selected':'')+'>'+o.label+'</option>'; });
         return html + '</select>';
       }
-      return '<input data-qid="'+q.id+'" value="'+ans+'">';
+      return '<input data-lp-qid="'+q.id+'" value="'+ans+'">';
     }
 
     function statusFor(info){
-      var p = pts(info.q);
-      var answered = isAnswered(info.q);
-      if (!answered) return 'Not answered yet';
-      if (p != null) return 'Score: ' + Math.round(p) + '/100';
-      if (isProfile(info.qid)) return 'Used for scoring other questions';
-      if (info.q && info.q.normsTable) return 'Answered (needs age + sex to score)';
-      return 'Answered';
-    }
-
-    function computeScores(){
-      var dimNames = {medical:'Medical', nutrition:'Nutrition', energy:'Energy & Performance', sleep:'Sleep', wellbeing:'Wellbeing', mindset:'Mindset'};
-      var byDim = {medical:[], nutrition:[], energy:[], sleep:[], wellbeing:[], mindset:[]};
-      var scored = [];
-      var answered = [];
-      var selectedList = [];
-      var ordered = orderedSelection();
-      ordered.forEach(function(qid){
-        var info = idMap[qid]; if (!info) return;
-        selectedList.push(info);
-        if (isAnswered(info.q)) answered.push(info);
-        // Profile questions don't contribute to the score
-        if (isProfile(qid)) return;
-        var p = pts(info.q);
-        if (p != null) { byDim[info.dimKey].push(p); scored.push(p); }
-      });
-      var total = scored.length ? Math.round(scored.reduce(function(a,b){return a+b;},0)/scored.length) : null;
-      var dimScores = {};
-      Object.keys(byDim).forEach(function(k){
-        var arr = byDim[k];
-        dimScores[k] = arr.length ? Math.round(arr.reduce(function(a,b){return a+b;},0)/arr.length) : null;
-      });
-      return {dimNames:dimNames, dimScores:dimScores, total:total, scoredCount: scored.length, answeredCount: answered.length, selectedList:selectedList};
+      var ans = getCurrentAnswer(info);
+      if (ans == null || ans === '') return 'Not answered yet';
+      if (isProfile(info.qid)) return 'Saved (used by scoring) — value: ' + ans;
+      return 'Saved — value: ' + ans;
     }
 
     function clearAnswers(){
       if (!confirm('Clear ALL answers (including in dimension drawers below)? Your question selection stays.')) return;
       try { localStorage.removeItem('longevityPathData'); } catch(e){}
-      window.answers = {};
       location.reload();
     }
 
-    function updateScoresOnly(){
+    function updateStatuses(){
       var panel = document.getElementById('lp-panel');
-      if (!panel) return renderPanel();
-      var s = computeScores();
+      if (!panel) return;
+      var s = computeCounts();
       var cntEl = panel.querySelector('.lp-count');
       if (cntEl) cntEl.textContent = SEL.size + ' of 44 selected · ' + s.answeredCount + ' answered';
-      var bigEl = panel.querySelector('.lp-score-big');
-      if (bigEl) bigEl.textContent = (s.total == null ? '—' : s.total);
-      var pillBox = panel.querySelector('.lp-dim-mini');
-      if (pillBox) {
-        var html = '';
-        Object.keys(s.dimNames).forEach(function(dk){
-          var v = s.dimScores[dk];
-          html += '<div class="lp-dim-pill">' + s.dimNames[dk] + ': ' + (v==null?'—':v+'/100') + '</div>';
-        });
-        pillBox.innerHTML = html;
-      }
       panel.querySelectorAll('.lp-q-card').forEach(function(card){
-        var inp = card.querySelector('input,select'); if (!inp) return;
-        var qid = inp.dataset.qid; if (!qid) return;
+        var qid = card.dataset.cardQid;
         var info = idMap[qid]; if (!info) return;
         var statusEl = card.querySelector('.lp-q-status');
         if (statusEl) statusEl.textContent = statusFor(info);
       });
+    }
+
+    function computeCounts(){
+      var answered = 0;
+      var selectedList = [];
+      orderedSelection().forEach(function(qid){
+        var info = idMap[qid]; if (!info) return;
+        selectedList.push(info);
+        if (isAnswered(info)) answered++;
+      });
+      return {answeredCount: answered, selectedList: selectedList};
     }
 
     function renderPanel(){
@@ -3506,12 +3534,7 @@
         else tab.appendChild(panel);
       }
 
-      var s = computeScores();
-      var pills = '';
-      Object.keys(s.dimNames).forEach(function(dk){
-        var v = s.dimScores[dk];
-        pills += '<div class="lp-dim-pill">' + s.dimNames[dk] + ': ' + (v==null?'—':v+'/100') + '</div>';
-      });
+      var s = computeCounts();
       var qList = '';
       s.selectedList.forEach(function(info){
         var profile = isProfile(info.qid);
@@ -3519,7 +3542,7 @@
         var tagClass = profile ? 'lp-dim-tag lp-tag-profile' : 'lp-dim-tag';
         var tagLabel = profile ? 'PROFILE · ' + info.dimName : info.dimName;
         var hint = profile ? '<div class="lp-profile-hint">Required — needed for VO2max & push-up scoring</div>' : '';
-        qList += '<div class="'+cardClass+'" data-card-qid="'+info.qid+'"><div class="'+tagClass+'">'+tagLabel+'</div><h4>'+info.q.question+'</h4>'+hint+buildInputHtml(info.q)+'<div class="lp-q-status" style="font-size:11px;color:var(--color-text-muted);margin-top:6px">'+statusFor(info)+'</div></div>';
+        qList += '<div class="'+cardClass+'" data-card-qid="'+info.qid+'"><div class="'+tagClass+'">'+tagLabel+'</div><h4>'+info.q.question+'</h4>'+hint+buildInputHtml(info)+'<div class="lp-q-status">'+statusFor(info)+'</div></div>';
       });
       if (s.selectedList.length === 0) qList = '<div style="text-align:center;padding:20px;color:var(--color-text-muted);font-size:13px">No questions selected.</div>';
       panel.innerHTML =
@@ -3527,19 +3550,17 @@
           '<h3>Your Selected Questions</h3>' +
           '<div class="lp-count">' + SEL.size + ' of 44 selected · ' + s.answeredCount + ' answered</div>' +
         '</div>' +
-        '<div class="lp-score-row"><div><div class="lp-score-big">'+(s.total==null?'—':s.total)+'</div><div class="lp-score-sub">/100</div></div><div><div style="font-weight:600;font-size:14px">Selected Score</div><div class="lp-score-sub">Avg of answered selected questions</div></div></div>' +
-        '<div class="lp-dim-mini">'+pills+'</div>' +
+        '<div class="lp-mirror-note">Values typed here feed into the dashboard below — see your live Longevity Lifestyle Score &amp; per-dimension scores above.</div>' +
         '<div style="margin-top:12px;max-height:60vh;overflow-y:auto">'+qList+'</div>';
 
-      panel.querySelectorAll('input,select').forEach(function(inp){
+      panel.querySelectorAll('input[data-lp-qid], select[data-lp-qid]').forEach(function(inp){
         var evt = (inp.tagName === 'SELECT') ? 'change' : 'input';
         inp.addEventListener(evt, function(){
-          var qid = inp.dataset.qid; if (!qid) return;
-          if (!window.answers) window.answers = {};
-          window.answers[qid] = inp.value;
-          if (typeof saveAnswers === 'function') try { saveAnswers(); } catch(e){}
-          if (typeof updateScoresAndUI === 'function') try { updateScoresAndUI(); } catch(e){}
-          updateScoresOnly();
+          var qid = inp.dataset.lpQid; if (!qid) return;
+          var info = idMap[qid]; if (!info) return;
+          var v = inp.value;
+          feedValue(info, v);
+          updateStatuses();
         });
       });
     }
@@ -3548,9 +3569,10 @@
     injectCheckboxes();
     var obs = new MutationObserver(function(){ injectCheckboxes(); });
     obs.observe(document.body, {childList: true, subtree: true});
+
     if (typeof window.updateScoresAndUI === 'function') {
       var orig = window.updateScoresAndUI;
-      window.updateScoresAndUI = function(){ var r = orig.apply(this, arguments); try { updateScoresOnly(); } catch(e){} return r; };
+      window.updateScoresAndUI = function(){ var r = orig.apply(this, arguments); try { updateStatuses(); } catch(e){} return r; };
     }
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
