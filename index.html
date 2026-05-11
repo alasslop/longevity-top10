@@ -294,6 +294,9 @@
 .lp-panel h3 { margin:0; font-size:16px; color:#00905A; }
 .lp-panel-head { display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
 .lp-count { font-size:11px; color:var(--color-text-muted); }
+.lp-score-row { display:flex; gap:16px; padding:12px; background:var(--color-bg); border-radius:12px; margin-bottom:12px; align-items:center; }
+.lp-score-big { font-size:36px; font-weight:700; color:#00905A; line-height:1; }
+.lp-score-sub { font-size:11px; color:var(--color-text-muted); }
 .lp-q-card { padding:12px; border:1px solid var(--color-border); border-radius:10px; background:#fff; margin-bottom:8px; }
 .lp-q-card.lp-q-profile { background:#FFFBEB; border-color:#FDE68A; }
 .lp-q-card h4 { font-size:14px; margin:0 0 6px; font-weight:600; }
@@ -302,7 +305,8 @@
 .lp-q-card input, .lp-q-card select { width:100%; padding:8px; border:1px solid var(--color-border); border-radius:8px; font-size:14px; margin-top:6px; }
 .lp-profile-hint { font-size:11px; color:#92400E; font-style:italic; }
 .lp-q-status { font-size:11px; color:var(--color-text-muted); margin-top:6px; }
-.lp-mirror-note { font-size:11px; color:var(--color-text-muted); margin:8px 0 0; font-style:italic; }
+.lp-dim-mini { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+.lp-dim-pill { font-size:11px; padding:4px 10px; background:var(--color-bg); border-radius:999px; border:1px solid var(--color-border); }
 </style>
 </head>
 <body>
@@ -3305,7 +3309,54 @@
   function init(){
     if (typeof CATEGORIES === 'undefined' || !document.body) { setTimeout(init, 200); return; }
 
-    // Build maps with secKey now
+    var VO2MAX_NORMS_LP = {
+      male: {
+        "20-29":[{m:38.2,p:0},{m:41.9,p:1},{m:45.5,p:5},{m:51,p:7},{m:55.9,p:9},{m:999,p:10}],
+        "30-39":[{m:34.4,p:0},{m:38.3,p:1},{m:42.3,p:5},{m:47.3,p:7},{m:52.4,p:9},{m:999,p:10}],
+        "40-49":[{m:30.7,p:0},{m:34.5,p:1},{m:38.3,p:5},{m:44.1,p:7},{m:49.9,p:9},{m:999,p:10}],
+        "50-59":[{m:27.0,p:0},{m:30.9,p:1},{m:34.8,p:5},{m:40.1,p:7},{m:45.2,p:9},{m:999,p:10}],
+        "60-69":[{m:23.7,p:0},{m:27.4,p:1},{m:31.4,p:5},{m:37.2,p:7},{m:43.0,p:9},{m:999,p:10}],
+        "70+":  [{m:19.6,p:0},{m:23.3,p:1},{m:27.6,p:5},{m:33.4,p:7},{m:39.2,p:9},{m:999,p:10}]
+      },
+      female: {
+        "20-29":[{m:27.9,p:0},{m:31.3,p:1},{m:35.1,p:5},{m:40.9,p:7},{m:45.8,p:9},{m:999,p:10}],
+        "30-39":[{m:26.4,p:0},{m:29.8,p:1},{m:33.7,p:5},{m:38.7,p:7},{m:44.0,p:9},{m:999,p:10}],
+        "40-49":[{m:24.4,p:0},{m:27.4,p:1},{m:31.0,p:5},{m:36.7,p:7},{m:42.4,p:9},{m:999,p:10}],
+        "50-59":[{m:22.6,p:0},{m:25.9,p:1},{m:29.7,p:5},{m:35.6,p:7},{m:40.9,p:9},{m:999,p:10}],
+        "60-69":[{m:20.0,p:0},{m:23.4,p:1},{m:27.2,p:5},{m:33.0,p:7},{m:37.9,p:9},{m:999,p:10}],
+        "70+":  [{m:17.4,p:0},{m:20.7,p:1},{m:24.4,p:5},{m:30.2,p:7},{m:35.1,p:9},{m:999,p:10}]
+      }
+    };
+    var PUSHUP_NORMS_LP = {
+      male: {
+        "20-29":[{m:16,p:0},{m:22,p:2},{m:28,p:5},{m:38,p:8},{m:999,p:10}],
+        "30-39":[{m:15,p:0},{m:21,p:2},{m:28,p:5},{m:35,p:8},{m:999,p:10}],
+        "40-49":[{m:11,p:0},{m:16,p:2},{m:21,p:5},{m:29,p:8},{m:999,p:10}],
+        "50-59":[{m: 9,p:0},{m:12,p:2},{m:16,p:5},{m:24,p:8},{m:999,p:10}],
+        "60-69":[{m: 6,p:0},{m: 9,p:2},{m:12,p:5},{m:20,p:8},{m:999,p:10}],
+        "70+":  [{m: 4,p:0},{m: 7,p:2},{m:10,p:5},{m:17,p:8},{m:999,p:10}]
+      },
+      female: {
+        "20-29":[{m:11,p:0},{m:17,p:2},{m:24,p:5},{m:34,p:8},{m:999,p:10}],
+        "30-39":[{m:11,p:0},{m:16,p:2},{m:21,p:5},{m:29,p:8},{m:999,p:10}],
+        "40-49":[{m: 7,p:0},{m:13,p:2},{m:20,p:5},{m:28,p:8},{m:999,p:10}],
+        "50-59":[{m: 5,p:0},{m:10,p:2},{m:16,p:5},{m:24,p:8},{m:999,p:10}],
+        "60-69":[{m: 4,p:0},{m: 9,p:2},{m:15,p:5},{m:22,p:8},{m:999,p:10}],
+        "70+":  [{m: 3,p:0},{m: 8,p:2},{m:14,p:5},{m:20,p:8},{m:999,p:10}]
+      }
+    };
+    function lpAgeBand(age){
+      if (age < 30) return "20-29"; if (age < 40) return "30-39"; if (age < 50) return "40-49";
+      if (age < 60) return "50-59"; if (age < 70) return "60-69"; return "70+";
+    }
+    function lpNormScore(table, sex, age, value){
+      if (!sex || age == null || value == null || isNaN(value)) return null;
+      var band = lpAgeBand(age); var arr = (table[sex] || {})[band]; if (!arr) return null;
+      for (var i = 0; i < arr.length; i++) { if (value <= arr[i].m) return arr[i].p; }
+      return arr[arr.length-1].p;
+    }
+
+
     var textMap = {};
     Object.keys(CATEGORIES).forEach(function(dk){
       var dim = CATEGORIES[dk];
@@ -3336,57 +3387,33 @@
       return PROFILE.filter(function(q){ return SEL.has(q); }).concat(rest);
     }
 
-    // === Feed value into the dashboard's own storage by triggering its setter functions ===
+    // === Feed values into dashboard ===
     function feedNumber(info, value){
       var qid = info.qid;
       var orig = document.querySelector('input[data-q="' + qid + '"]');
-      if (orig && typeof window.updateNumber === 'function') {
-        orig.value = value;
-        try { window.updateNumber(orig); return true; } catch(e) { console.warn('updateNumber failed', e); }
-      }
-      // Synthetic element fallback
+      if (orig && typeof window.updateNumber === 'function') { orig.value = value; try { window.updateNumber(orig); return true; } catch(e){} }
       var fake = document.createElement('input');
-      fake.dataset.cat = info.dimKey;
-      fake.dataset.sec = info.secKey;
-      fake.dataset.q = qid;
-      fake.value = value;
-      try { if (typeof window.updateNumber === 'function') { window.updateNumber(fake); return true; } } catch(e) { console.warn('updateNumber (fake) failed', e); }
+      fake.dataset.cat = info.dimKey; fake.dataset.sec = info.secKey; fake.dataset.q = qid; fake.value = value;
+      try { if (typeof window.updateNumber === 'function') { window.updateNumber(fake); return true; } } catch(e){}
       return false;
     }
     function feedRadio(info, value){
       var qid = info.qid;
-      // Try to find an existing radio-option in the dashboard DOM
       var opts = document.querySelectorAll('.radio-option[onclick*="' + qid + '"]');
       var foundEl = null;
-      for (var i = 0; i < opts.length; i++) {
-        if (opts[i].getAttribute('onclick').indexOf("'" + value + "'") !== -1) { foundEl = opts[i]; break; }
-      }
-      if (foundEl && typeof window.selectRadio === 'function') {
-        try { window.selectRadio(info.dimKey, info.secKey, qid, value, foundEl); return true; } catch(e) { console.warn('selectRadio existing failed', e); }
-      }
-      // Synthetic element fallback
-      var fakeParent = document.createElement('div');
-      var fakeChild = document.createElement('div');
-      fakeChild.className = 'radio-option';
-      var fakeInput = document.createElement('input');
-      fakeChild.appendChild(fakeInput);
-      fakeParent.appendChild(fakeChild);
-      try { if (typeof window.selectRadio === 'function') { window.selectRadio(info.dimKey, info.secKey, qid, value, fakeChild); return true; } } catch(e) { console.warn('selectRadio (fake) failed', e); }
+      for (var i = 0; i < opts.length; i++) { if (opts[i].getAttribute('onclick').indexOf("'" + value + "'") !== -1) { foundEl = opts[i]; break; } }
+      if (foundEl && typeof window.selectRadio === 'function') { try { window.selectRadio(info.dimKey, info.secKey, qid, value, foundEl); return true; } catch(e){} }
+      var fakeParent = document.createElement('div'); var fakeChild = document.createElement('div'); fakeChild.className = 'radio-option';
+      var fakeInput = document.createElement('input'); fakeChild.appendChild(fakeInput); fakeParent.appendChild(fakeChild);
+      try { if (typeof window.selectRadio === 'function') { window.selectRadio(info.dimKey, info.secKey, qid, value, fakeChild); return true; } } catch(e){}
       return false;
     }
     function feedSlider(info, value){
       var qid = info.qid;
       var orig = document.querySelector('input[type="range"][data-q="' + qid + '"]');
-      if (orig && typeof window.updateSlider === 'function') {
-        orig.value = value;
-        try { window.updateSlider(orig); return true; } catch(e) { console.warn('updateSlider failed', e); }
-      }
-      var fake = document.createElement('input');
-      fake.dataset.cat = info.dimKey;
-      fake.dataset.sec = info.secKey;
-      fake.dataset.q = qid;
-      fake.value = value;
-      try { if (typeof window.updateSlider === 'function') { window.updateSlider(fake); return true; } } catch(e) {}
+      if (orig && typeof window.updateSlider === 'function') { orig.value = value; try { window.updateSlider(orig); return true; } catch(e){} }
+      var fake = document.createElement('input'); fake.dataset.cat = info.dimKey; fake.dataset.sec = info.secKey; fake.dataset.q = qid; fake.value = value;
+      try { if (typeof window.updateSlider === 'function') { window.updateSlider(fake); return true; } } catch(e){}
       return false;
     }
     function feedValue(info, value){
@@ -3398,14 +3425,21 @@
     }
 
     function getCurrentAnswer(info){
-      // Read directly from localStorage longevityPathData (it's the dashboard's persisted state)
       try {
         var data = JSON.parse(localStorage.getItem('longevityPathData') || '{}');
-        if (data.answers && data.answers[info.dimKey] && data.answers[info.dimKey][info.secKey]) {
-          return data.answers[info.dimKey][info.secKey][info.qid];
-        }
-      } catch(e) {}
+        if (data.answers && data.answers[info.dimKey] && data.answers[info.dimKey][info.secKey]) return data.answers[info.dimKey][info.secKey][info.qid];
+      } catch(e){}
       return undefined;
+    }
+
+    function getDemo(){
+      try {
+        var data = JSON.parse(localStorage.getItem('longevityPathData') || '{}');
+        var p = (data.answers && data.answers.medical && data.answers.medical.sec1) || {};
+        var yob = p.MD1_yob; var sex = p.MD1_sex;
+        var age = yob ? new Date().getFullYear() - parseInt(yob) : null;
+        return { age: age, sex: sex || null };
+      } catch(e) { return { age: null, sex: null }; }
     }
 
     function isAnswered(info){
@@ -3414,6 +3448,63 @@
       if (typeof a === 'string') return a.trim() !== '';
       if (Array.isArray(a)) return a.length > 0;
       return true;
+    }
+
+    // === Per-question 0-100 score, mirroring the dashboard's logic ===
+    function questionScore100(info){
+      var q = info.q;
+      var value = getCurrentAnswer(info);
+      if (value === null || value === undefined || value === '') return null;
+      if (q.type === 'number' && q.normsTable) {
+        var demo = getDemo();
+        if (!demo.sex || demo.age == null) return null;
+        var table = q.normsTable === 'VO2MAX_NORMS' ? VO2MAX_NORMS_LP : q.normsTable === 'PUSHUP_NORMS' ? PUSHUP_NORMS_LP : null;
+        if (!table) return null;
+        var v = parseFloat(value);
+        if (isNaN(v)) return null;
+        var s = lpNormScore(table, demo.sex, demo.age, v);
+        return s == null ? null : s * 10; // 0-10 -> 0-100
+      }
+      if (q.type === 'number' && q.inputMin !== undefined && q.inputMax !== undefined) {
+        var v = parseFloat(value);
+        if (isNaN(v)) return null;
+        var pct = ((v - q.inputMin) / (q.inputMax - q.inputMin)) * 100;
+        if (q.edgeFloor !== undefined && v < q.edgeFloor) {
+          var rng = q.edgeFloor - (q.min || 0);
+          pct = rng > 0 ? Math.max(0, Math.min(100, ((v - (q.min||0)) / rng) * 100)) : 0;
+        }
+        if (q.edgeCeiling !== undefined && v > q.edgeCeiling) {
+          var rng2 = (q.max || 999) - q.edgeCeiling;
+          pct = rng2 > 0 ? Math.max(0, Math.min(100, (((q.max||999) - v) / rng2) * 100)) : 0;
+        }
+        return Math.max(0, Math.min(100, pct));
+      }
+      if (q.type === 'number' && q.genderScoring) {
+        var demo2 = getDemo();
+        var sex = demo2.sex || 'male';
+        var bounds = q.genderScoring[sex] || q.genderScoring['male'];
+        var v = parseFloat(value);
+        if (isNaN(v)) return null;
+        return Math.max(0, Math.min(100, ((v - bounds.inputMin) / (bounds.inputMax - bounds.inputMin)) * 100));
+      }
+      if (q.type === 'radio' && q.options && q.options[0] && q.options[0].points !== undefined) {
+        var v = parseFloat(value);
+        if (isNaN(v)) return null;
+        return (v / 10) * 100;
+      }
+      if (q.type === 'slider') {
+        var v = parseFloat(value);
+        if (isNaN(v)) return null;
+        var mn = q.min || 0; var mx = q.max || 10;
+        return Math.max(0, Math.min(100, ((v - mn) / (mx - mn)) * 100));
+      }
+      if (q.type === 'checkbox' && q.scoring === 'count' && Array.isArray(value)) {
+        return (value.length / q.options.length) * 100;
+      }
+      if (q.type === 'checkbox' && q.scoring === 'principles' && Array.isArray(value)) {
+        return Math.min(100, value.length * 2 * 10);
+      }
+      return null;
     }
 
     function injectCheckboxes(){
@@ -3437,23 +3528,16 @@
         el.dataset.lpInjected = '1';
         el.dataset.qid = info.qid;
         var cb = document.createElement('input');
-        cb.type = 'checkbox';
-        cb.className = 'lp-cb';
+        cb.type = 'checkbox'; cb.className = 'lp-cb'; cb.dataset.qid = info.qid;
         cb.checked = SEL.has(info.qid);
-        cb.dataset.qid = info.qid;
-        if (isProfile(info.qid)) {
-          cb.checked = true; cb.disabled = true;
-          cb.title = 'Required for scoring — always selected';
-        }
+        if (isProfile(info.qid)) { cb.checked = true; cb.disabled = true; cb.title = 'Required for scoring — always selected'; }
         cb.addEventListener('click', function(e){ e.stopPropagation(); });
         cb.addEventListener('change', function(){
           if (isProfile(info.qid)) { cb.checked = true; return; }
           if (cb.checked) SEL.add(info.qid); else SEL.delete(info.qid);
-          save();
-          renderPanel();
+          save(); renderPanel();
         });
-        labelEl.style.display = 'flex';
-        labelEl.style.alignItems = 'flex-start';
+        labelEl.style.display = 'flex'; labelEl.style.alignItems = 'flex-start';
         labelEl.insertBefore(cb, labelEl.firstChild);
       });
     }
@@ -3472,10 +3556,32 @@
     }
 
     function statusFor(info){
-      var ans = getCurrentAnswer(info);
-      if (ans == null || ans === '') return 'Not answered yet';
-      if (isProfile(info.qid)) return 'Saved (used by scoring) — value: ' + ans;
-      return 'Saved — value: ' + ans;
+      if (!isAnswered(info)) return 'Not answered yet';
+      if (isProfile(info.qid)) return 'Used for scoring other questions';
+      var s = questionScore100(info);
+      if (s == null) {
+        if (info.q.normsTable) return 'Answered — needs age + sex to score';
+        return 'Answered (no score available)';
+      }
+      return 'Score: ' + Math.round(s) + '/100';
+    }
+
+    function computeScores(){
+      var dimNames = {medical:'Medical', nutrition:'Nutrition', energy:'Energy & Performance', sleep:'Sleep', wellbeing:'Wellbeing', mindset:'Mindset'};
+      var byDim = {medical:[], nutrition:[], energy:[], sleep:[], wellbeing:[], mindset:[]};
+      var all = []; var answered = 0; var selectedList = [];
+      orderedSelection().forEach(function(qid){
+        var info = idMap[qid]; if (!info) return;
+        selectedList.push(info);
+        if (isAnswered(info)) answered++;
+        if (isProfile(qid)) return; // Profile inputs don't get their own score
+        var s = questionScore100(info);
+        if (s != null) { byDim[info.dimKey].push(s); all.push(s); }
+      });
+      var total = all.length ? Math.round(all.reduce(function(a,b){return a+b;},0)/all.length) : null;
+      var dimScores = {};
+      Object.keys(byDim).forEach(function(k){ var arr = byDim[k]; dimScores[k] = arr.length ? Math.round(arr.reduce(function(a,b){return a+b;},0)/arr.length) : null; });
+      return {dimNames: dimNames, dimScores: dimScores, total: total, answeredCount: answered, selectedList: selectedList};
     }
 
     function clearAnswers(){
@@ -3484,29 +3590,22 @@
       location.reload();
     }
 
-    function updateStatuses(){
-      var panel = document.getElementById('lp-panel');
-      if (!panel) return;
-      var s = computeCounts();
-      var cntEl = panel.querySelector('.lp-count');
-      if (cntEl) cntEl.textContent = SEL.size + ' of 44 selected · ' + s.answeredCount + ' answered';
+    function updateScoresOnly(){
+      var panel = document.getElementById('lp-panel'); if (!panel) return renderPanel();
+      var s = computeScores();
+      var cntEl = panel.querySelector('.lp-count'); if (cntEl) cntEl.textContent = SEL.size + ' of 44 selected · ' + s.answeredCount + ' answered';
+      var bigEl = panel.querySelector('.lp-score-big'); if (bigEl) bigEl.textContent = (s.total == null ? '—' : s.total);
+      var pillBox = panel.querySelector('.lp-dim-mini');
+      if (pillBox) {
+        var html = '';
+        Object.keys(s.dimNames).forEach(function(dk){ var v = s.dimScores[dk]; html += '<div class="lp-dim-pill">' + s.dimNames[dk] + ': ' + (v==null?'—':v+'/100') + '</div>'; });
+        pillBox.innerHTML = html;
+      }
       panel.querySelectorAll('.lp-q-card').forEach(function(card){
-        var qid = card.dataset.cardQid;
-        var info = idMap[qid]; if (!info) return;
+        var qid = card.dataset.cardQid; var info = idMap[qid]; if (!info) return;
         var statusEl = card.querySelector('.lp-q-status');
         if (statusEl) statusEl.textContent = statusFor(info);
       });
-    }
-
-    function computeCounts(){
-      var answered = 0;
-      var selectedList = [];
-      orderedSelection().forEach(function(qid){
-        var info = idMap[qid]; if (!info) return;
-        selectedList.push(info);
-        if (isAnswered(info)) answered++;
-      });
-      return {answeredCount: answered, selectedList: selectedList};
     }
 
     function renderPanel(){
@@ -3515,26 +3614,21 @@
 
       var bar = document.getElementById('lp-clear-bar');
       if (!bar) {
-        bar = document.createElement('div');
-        bar.id = 'lp-clear-bar';
-        bar.className = 'lp-clear-bar';
+        bar = document.createElement('div'); bar.id = 'lp-clear-bar'; bar.className = 'lp-clear-bar';
         bar.innerHTML = '<button class="lp-clear-btn" id="lp-clear-btn" type="button">Clear answers</button>';
-        if (sh && sh.parentNode === tab) tab.insertBefore(bar, sh.nextSibling);
-        else tab.insertBefore(bar, tab.firstChild);
-        var btn = bar.querySelector('#lp-clear-btn');
-        if (btn) btn.addEventListener('click', clearAnswers);
+        if (sh && sh.parentNode === tab) tab.insertBefore(bar, sh.nextSibling); else tab.insertBefore(bar, tab.firstChild);
+        var btn = bar.querySelector('#lp-clear-btn'); if (btn) btn.addEventListener('click', clearAnswers);
       }
 
       var panel = document.getElementById('lp-panel');
       if (!panel) {
-        panel = document.createElement('div');
-        panel.id = 'lp-panel';
-        panel.className = 'lp-panel';
-        if (bar.nextSibling) tab.insertBefore(panel, bar.nextSibling);
-        else tab.appendChild(panel);
+        panel = document.createElement('div'); panel.id = 'lp-panel'; panel.className = 'lp-panel';
+        if (bar.nextSibling) tab.insertBefore(panel, bar.nextSibling); else tab.appendChild(panel);
       }
 
-      var s = computeCounts();
+      var s = computeScores();
+      var pills = '';
+      Object.keys(s.dimNames).forEach(function(dk){ var v = s.dimScores[dk]; pills += '<div class="lp-dim-pill">' + s.dimNames[dk] + ': ' + (v==null?'—':v+'/100') + '</div>'; });
       var qList = '';
       s.selectedList.forEach(function(info){
         var profile = isProfile(info.qid);
@@ -3546,11 +3640,9 @@
       });
       if (s.selectedList.length === 0) qList = '<div style="text-align:center;padding:20px;color:var(--color-text-muted);font-size:13px">No questions selected.</div>';
       panel.innerHTML =
-        '<div class="lp-panel-head">' +
-          '<h3>Your Selected Questions</h3>' +
-          '<div class="lp-count">' + SEL.size + ' of 44 selected · ' + s.answeredCount + ' answered</div>' +
-        '</div>' +
-        '<div class="lp-mirror-note">Values typed here feed into the dashboard below — see your live Longevity Lifestyle Score &amp; per-dimension scores above.</div>' +
+        '<div class="lp-panel-head"><h3>Your Selected Questions</h3><div class="lp-count">' + SEL.size + ' of 44 selected · ' + s.answeredCount + ' answered</div></div>' +
+        '<div class="lp-score-row"><div><div class="lp-score-big">'+(s.total==null?'—':s.total)+'</div><div class="lp-score-sub">/100</div></div><div><div style="font-weight:600;font-size:14px">Selected Score</div><div class="lp-score-sub">Avg of per-question scores across answered selected questions</div></div></div>' +
+        '<div class="lp-dim-mini">'+pills+'</div>' +
         '<div style="margin-top:12px;max-height:60vh;overflow-y:auto">'+qList+'</div>';
 
       panel.querySelectorAll('input[data-lp-qid], select[data-lp-qid]').forEach(function(inp){
@@ -3558,9 +3650,8 @@
         inp.addEventListener(evt, function(){
           var qid = inp.dataset.lpQid; if (!qid) return;
           var info = idMap[qid]; if (!info) return;
-          var v = inp.value;
-          feedValue(info, v);
-          updateStatuses();
+          feedValue(info, inp.value);
+          updateScoresOnly();
         });
       });
     }
@@ -3569,10 +3660,9 @@
     injectCheckboxes();
     var obs = new MutationObserver(function(){ injectCheckboxes(); });
     obs.observe(document.body, {childList: true, subtree: true});
-
     if (typeof window.updateScoresAndUI === 'function') {
       var orig = window.updateScoresAndUI;
-      window.updateScoresAndUI = function(){ var r = orig.apply(this, arguments); try { updateStatuses(); } catch(e){} return r; };
+      window.updateScoresAndUI = function(){ var r = orig.apply(this, arguments); try { updateScoresOnly(); } catch(e){} return r; };
     }
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
