@@ -3658,11 +3658,38 @@
 
     renderPanel();
     injectCheckboxes();
+    try { hijackDashboard(); } catch(e){}
     var obs = new MutationObserver(function(){ injectCheckboxes(); });
     obs.observe(document.body, {childList: true, subtree: true});
+
+    function hijackDashboard(){
+      var s = computeScores();
+      // Top ring number
+      var totEl = document.getElementById('totalScoreValue');
+      if (totEl) totEl.textContent = (s.total == null ? 0 : s.total);
+      // Top ring progress arc
+      var ring = document.getElementById('scoreRingProgress');
+      if (ring) {
+        var C = 2 * Math.PI * 78;
+        var pct = (s.total == null ? 0 : s.total) / 100;
+        ring.style.strokeDashoffset = C - pct * C;
+      }
+      // Per-dimension cards
+      var cards = document.querySelectorAll('.dimension-card');
+      cards.forEach(function(card){
+        var oc = card.getAttribute('onclick') || '';
+        var m = oc.match(/openDimension\('([^']+)'\)/);
+        if (!m) return;
+        var dimKey = m[1];
+        var v = s.dimScores[dimKey];
+        var valEl = card.querySelector('.dimension-score-value');
+        if (valEl) valEl.textContent = (v == null ? 0 : v);
+      });
+    }
+
     if (typeof window.updateScoresAndUI === 'function') {
       var orig = window.updateScoresAndUI;
-      window.updateScoresAndUI = function(){ var r = orig.apply(this, arguments); try { updateScoresOnly(); } catch(e){} return r; };
+      window.updateScoresAndUI = function(){ var r = orig.apply(this, arguments); try { updateScoresOnly(); } catch(e){} try { hijackDashboard(); } catch(e){} return r; };
     }
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
