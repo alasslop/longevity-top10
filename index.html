@@ -284,6 +284,21 @@
         .fitness-age.negative { color: var(--color-red); }
         .fitness-age.neutral { color: var(--color-text-muted); }
     </style>
+<style id="lp-selector-css">
+.lp-cb { width:20px; height:20px; cursor:pointer; accent-color:#00905A; margin-right:10px; flex-shrink:0; }
+.lp-panel { background:var(--color-card); border:2px solid #00905A; border-radius:16px; padding:16px; margin:16px; }
+.lp-panel h3 { margin:0 0 12px; font-size:16px; color:#00905A; }
+.lp-panel-head { display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+.lp-score-row { display:flex; gap:16px; padding:12px; background:var(--color-bg); border-radius:12px; margin-bottom:12px; align-items:center; }
+.lp-score-big { font-size:36px; font-weight:700; color:#00905A; line-height:1; }
+.lp-score-sub { font-size:11px; color:var(--color-text-muted); }
+.lp-q-card { padding:12px; border:1px solid var(--color-border); border-radius:10px; background:#fff; margin-bottom:8px; }
+.lp-q-card h4 { font-size:14px; margin:0 0 6px; font-weight:600; }
+.lp-dim-tag { font-size:10px; text-transform:uppercase; color:#00905A; background:#E8F5F0; padding:2px 8px; border-radius:999px; display:inline-block; margin-bottom:4px; }
+.lp-q-card input, .lp-q-card select { width:100%; padding:8px; border:1px solid var(--color-border); border-radius:8px; font-size:14px; margin-top:6px; }
+.lp-dim-mini { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+.lp-dim-pill { font-size:11px; padding:4px 10px; background:var(--color-bg); border-radius:999px; border:1px solid var(--color-border); }
+</style>
 </head>
 <body>
 
@@ -3280,5 +3295,154 @@
             initApp();
         });
     </script>
+<script id="lp-selector-script">
+(function(){
+  function init(){
+    if (typeof CATEGORIES === 'undefined' || !document.body) { setTimeout(init, 200); return; }
+    var textMap = {};
+    Object.keys(CATEGORIES).forEach(function(dk){
+      var dim = CATEGORIES[dk];
+      Object.keys(dim.sections || {}).forEach(function(sk){
+        var sec = dim.sections[sk];
+        (sec.questions || []).forEach(function(q){
+          if (q && q.question) textMap[q.question.trim()] = {qid: q.id, q: q, dimKey: dk, dimName: dim.name};
+        });
+      });
+    });
+    var idMap = {};
+    Object.keys(textMap).forEach(function(k){ idMap[textMap[k].qid] = textMap[k]; });
+
+    var TOP10 = ['E1_vo2','E2_pushups','MD3_insulin','MD3_apob','SS1_2','SS1_1','W2_1','W2_2','N3_1','M4_1'];
+    var stored = localStorage.getItem('lp_selected');
+    var SEL = new Set(stored ? JSON.parse(stored) : TOP10);
+    function save(){ localStorage.setItem('lp_selected', JSON.stringify(Array.from(SEL))); }
+
+    function getAns(qid){ return (window.answers || {})[qid]; }
+    function pts(q){
+      var a = getAns(q.id);
+      if (a == null || a === '' || (Array.isArray(a) && !a.length)) return null;
+      if (typeof questionScorePct === 'function') {
+        try { var p = questionScorePct(q, a); return (typeof p === 'number' && !isNaN(p)) ? p : null; } catch(e){ return null; }
+      }
+      return null;
+    }
+
+    function injectCheckboxes(){
+      var items = document.querySelectorAll('.question-item');
+      items.forEach(function(el){
+        if (el.dataset.lpInjected === '1') return;
+        var labelEl = el.querySelector('.question-label');
+        if (!labelEl) return;
+        var cloneLabel = labelEl.cloneNode(true);
+        var helpLink = cloneLabel.querySelector('.help-link');
+        if (helpLink) helpLink.remove();
+        var text = (cloneLabel.textContent || '').trim();
+        var info = textMap[text];
+        if (!info) {
+          var keys = Object.keys(textMap);
+          for (var i = 0; i < keys.length; i++) {
+            if (text === keys[i] || text.indexOf(keys[i]) === 0 || keys[i].indexOf(text) === 0) { info = textMap[keys[i]]; break; }
+          }
+        }
+        if (!info) return;
+        el.dataset.lpInjected = '1';
+        el.dataset.qid = info.qid;
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.className = 'lp-cb';
+        cb.checked = SEL.has(info.qid);
+        cb.dataset.qid = info.qid;
+        cb.addEventListener('click', function(e){ e.stopPropagation(); });
+        cb.addEventListener('change', function(){
+          if (cb.checked) SEL.add(info.qid); else SEL.delete(info.qid);
+          save();
+          renderPanel();
+        });
+        labelEl.style.display = 'flex';
+        labelEl.style.alignItems = 'flex-start';
+        labelEl.insertBefore(cb, labelEl.firstChild);
+      });
+    }
+
+    function buildInput(q){
+      var ans = getAns(q.id); if (ans == null) ans = '';
+      if (q.type === 'number') return '<input type="number" data-qid="'+q.id+'" min="'+(q.min||0)+'" max="'+(q.max||999)+'" step="'+(q.step||0.1)+'" placeholder="'+(q.unit||'')+'" value="'+ans+'">';
+      if (q.type === 'slider') return '<input type="range" data-qid="'+q.id+'" min="'+(q.min||0)+'" max="'+(q.max||10)+'" step="'+(q.step||1)+'" value="'+(ans||q.min||0)+'"><div style="font-size:11px;text-align:center;color:#888">Value: '+(ans||'\u2014')+'</div>';
+      if (q.type === 'radio' && Array.isArray(q.options)) {
+        var html = '<select data-qid="'+q.id+'"><option value="">\u2014 Select \u2014</option>';
+        q.options.forEach(function(o){ html += '<option value="'+o.value+'"'+(String(ans)===String(o.value)?' selected':'')+'>'+o.label+'</option>'; });
+        return html + '</select>';
+      }
+      return '<input data-qid="'+q.id+'" value="'+ans+'">';
+    }
+
+    function renderPanel(){
+      var panel = document.getElementById('lp-panel');
+      if (!panel) {
+        panel = document.createElement('div');
+        panel.id = 'lp-panel';
+        panel.className = 'lp-panel';
+        var tab = document.querySelector('.tab-content.active') || document.querySelector('.tab-content') || document.body;
+        var sh = tab.querySelector('.score-header');
+        if (sh && sh.parentNode === tab) tab.insertBefore(panel, sh.nextSibling);
+        else tab.insertBefore(panel, tab.firstChild);
+      }
+      var dimNames = {medical:'Medical', nutrition:'Nutrition', energy:'Energy & Performance', sleep:'Sleep', wellbeing:'Wellbeing', mindset:'Mindset'};
+      var byDim = {medical:[], nutrition:[], energy:[], sleep:[], wellbeing:[], mindset:[]};
+      var all = [];
+      var selectedList = [];
+      SEL.forEach(function(qid){
+        var info = idMap[qid]; if (!info) return;
+        selectedList.push(info);
+        var p = pts(info.q);
+        if (p != null) { byDim[info.dimKey].push(p); all.push(p); }
+      });
+      var total = all.length ? Math.round(all.reduce(function(a,b){return a+b;},0)/all.length) : null;
+      var dimScores = {};
+      Object.keys(byDim).forEach(function(k){
+        var arr = byDim[k];
+        dimScores[k] = arr.length ? Math.round(arr.reduce(function(a,b){return a+b;},0)/arr.length) : null;
+      });
+      var pills = '';
+      Object.keys(dimNames).forEach(function(dk){
+        var v = dimScores[dk];
+        pills += '<div class="lp-dim-pill">'+dimNames[dk]+': '+(v==null?'\u2014':v+'/100')+'</div>';
+      });
+      var qList = '';
+      selectedList.forEach(function(info){
+        var p = pts(info.q);
+        qList += '<div class="lp-q-card"><div class="lp-dim-tag">'+info.dimName+'</div><h4>'+info.q.question+'</h4>'+buildInput(info.q)+'<div style="font-size:11px;color:var(--color-text-muted);margin-top:6px">'+(p==null?'Not answered yet':'Score: '+Math.round(p)+'/100')+'</div></div>';
+      });
+      if (selectedList.length === 0) qList = '<div style="text-align:center;padding:20px;color:var(--color-text-muted);font-size:13px">No questions selected. Open a dimension below and tick the checkbox next to questions.</div>';
+      panel.innerHTML =
+        '<div class="lp-panel-head"><h3>Your Selected Questions</h3><div style="font-size:11px;color:var(--color-text-muted)">'+SEL.size+' of 44 selected \u00b7 '+all.length+' answered</div></div>' +
+        '<div class="lp-score-row"><div><div class="lp-score-big">'+(total==null?'\u2014':total)+'</div><div class="lp-score-sub">/100</div></div><div><div style="font-weight:600;font-size:14px">Selected Score</div><div class="lp-score-sub">Avg of answered selected questions</div></div></div>' +
+        '<div class="lp-dim-mini">'+pills+'</div>' +
+        '<div style="margin-top:12px;max-height:60vh;overflow-y:auto">'+qList+'</div>';
+      panel.querySelectorAll('input,select').forEach(function(inp){
+        inp.addEventListener('input', function(){
+          var qid = inp.dataset.qid; if (!qid) return;
+          if (!window.answers) window.answers = {};
+          window.answers[qid] = inp.value;
+          if (typeof saveAnswers === 'function') try { saveAnswers(); } catch(e){}
+          if (typeof updateScoresAndUI === 'function') updateScoresAndUI();
+          renderPanel();
+        });
+      });
+    }
+
+    renderPanel();
+    injectCheckboxes();
+    var obs = new MutationObserver(function(){ injectCheckboxes(); });
+    obs.observe(document.body, {childList: true, subtree: true});
+    if (typeof window.updateScoresAndUI === 'function') {
+      var orig = window.updateScoresAndUI;
+      window.updateScoresAndUI = function(){ var r = orig.apply(this, arguments); try { renderPanel(); } catch(e){} return r; };
+    }
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+</script>
 </body>
 </html>
